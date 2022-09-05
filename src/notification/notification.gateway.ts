@@ -23,8 +23,8 @@ export class NotificationGateway implements OnGatewayConnection {
   ) {}
 
   async handleConnection(client: Socket, ...args: any[]) {
+    console.log('fdfdfd');
     const token = client.handshake?.auth?.token;
-    console.log('token', token);
     try {
       const payload: {
         userId: string;
@@ -40,19 +40,19 @@ export class NotificationGateway implements OnGatewayConnection {
         secret: process.env.SECRET_KEY_APP,
         ignoreExpiration: true,
       });
-      console.log('userId', payload.userId);
       !client.rooms.has(payload.userId) && client.join(payload.userId);
       !client.rooms.has(payload.panel.panelId) &&
         client.join(payload.panel.panelId);
-
-      console.log('join3', payload.panel.panelId);
     } catch (error) {
       try {
         const x: { iat: Date; exp: Date; userId: string } =
           await this.jwtService.verify(token, {
             secret: process.env.SECRET_KEY,
           });
-        console.log('join2', x.userId);
+        console.log(
+          'fdfdfdf',
+          !client.rooms.has(x.userId) && client.join(x.userId),
+        );
         !client.rooms.has(x.userId) && client.join(x.userId);
       } catch (error) {
         client.disconnect();
@@ -73,17 +73,19 @@ export class NotificationGateway implements OnGatewayConnection {
       context: data.context,
       reciver: data.reciver,
       senderRefPath: data.senderRefPath,
+      sendingNotification: data.sendingNotification,
       type: data.type,
       read: false,
       sendingEmail: data.sendingEmail,
     });
+    if (notification.sendingNotification) {
+      const recivers = notification.reciver.map((e) => e.toString());
 
-    const recivers = notification.reciver.map((e) => e.toString());
-
-    this.server.to(recivers).emit('notification', {
-      data: notification,
-      event: notification.type,
-    });
+      this.server.to(recivers).emit('notification', {
+        data: notification,
+        event: notification.type,
+      });
+    }
   }
 
   @SubscribeMessage('read')
@@ -95,7 +97,6 @@ export class NotificationGateway implements OnGatewayConnection {
       data.id,
       data.reciver,
     );
-    console.log(notification);
     if (!notification) return;
 
     const result = await this.notificationService.findReadNotification(

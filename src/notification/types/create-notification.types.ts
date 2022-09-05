@@ -5,4 +5,5 @@ export type CreateNotificationType = {
   reciver: string;
   senderRefPath: string;
   type: string;
+  sendingNotification?: boolean;
 };

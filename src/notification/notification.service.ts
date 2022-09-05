@@ -6,11 +6,14 @@ import {
   Notification,
   NotificationDocument,
   NotificationReciverRefPath,
+  NotificationType,
+  User,
 } from '3dily-schema';
 import { Cron } from '@nestjs/schedule';
 import { MailService } from 'src/mail/mail.service';
 import { UserService } from 'src/user/user.service';
 import { PanelService } from 'src/panel/panel.service';
+import { emailsList } from './email.utils';
 
 @Injectable()
 export class NotificationService {
@@ -62,26 +65,64 @@ export class NotificationService {
     );
   }
 
-  @Cron('1 * * * * *')
+  @Cron('*/10 * * * * *')
   async emailService() {
-    let reciver;
+    console.log('Hi');
+    let reciverEmail;
+    let reciverName;
     const date = new Date(Date.now());
-    date.setMinutes(date.getMinutes() - 10);
+    date.setMinutes(date.getMinutes() - 1);
     const email = await this.notificationModel.findOne({
-      read: false,
       isEmailsend: false,
       sendingEmail: true,
       createdAt: { $lt: new Date(date) },
     });
-    console.log(email);
     if (!email) return;
+    console.log(email);
     if (email.senderRefPath === NotificationReciverRefPath.USER) {
-      reciver = await this.userService.findById(email.reciver[0].toString());
+      console.log(1);
+      const user = await this.userService.findById(email.reciver[0].toString());
+      console.log(user);
+      if (!user) {
+        console.log('shit');
+        email.sendingEmail = true;
+        email.save();
+        return;
+      } else {
+        reciverEmail = user.email;
+        reciverName = user.firstName;
+      }
     } else if (email.senderRefPath === NotificationReciverRefPath.PANEL) {
-      reciver = await this.panelService.findById(email.reciver[0].toString());
+      console.log(2);
+      const panel = await this.panelService
+        .findById(email.reciver[0].toString())
+        .populate({
+          path: 'users',
+          model: User.name,
+          populate: { path: 'user', model: User.name },
+        });
+
+      if (!panel) {
+        console.log('Shit');
+        email.sendingEmail = true;
+        email.save();
+        return;
+      }
+      const owner = panel.users.find((e) => e.isOwner);
+      reciverEmail = panel.email ? panel.email : owner.user.email;
+      reciverName = owner.user.firstName;
     }
-    console.log('new email', email, reciver.email);
-    await this.mailService.send(reciver.email, '3DILY', email.context);
+    await this.mailService.send(
+      reciverEmail,
+      email.type,
+      emailsList[email.type](reciverName, email.context),
+    );
+    if (
+      email.type === NotificationType.FORGET_PASSWORD ||
+      email.type === NotificationType.SIGNUP
+    ) {
+      email.context = 'Sending Email';
+    }
     email.isEmailsend = true;
     email.save();
   }

@@ -14,7 +14,7 @@ export class NotificationController {
 
   @EventPattern('notification_microservice')
   productCopy(data: any) {
-    console.log('data', data);
+    console.log('data', data);  
     this.emitEventer.emit('notification_gateway', data);
   }
 }
